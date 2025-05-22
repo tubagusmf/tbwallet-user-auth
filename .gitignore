@@ -1,0 +1,4 @@
+# ignore ALL .config files
+config.yml
+dbconfig.yml
+.env
