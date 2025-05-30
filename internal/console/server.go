@@ -10,6 +10,10 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/tubagusmf/tbwallet-user-auth/database"
 	"github.com/tubagusmf/tbwallet-user-auth/internal/config"
+	"github.com/tubagusmf/tbwallet-user-auth/internal/repository"
+	"github.com/tubagusmf/tbwallet-user-auth/internal/usecase"
+
+	handlerHttp "github.com/tubagusmf/tbwallet-user-auth/internal/delivery/http"
 )
 
 func init() {
@@ -33,7 +37,12 @@ func httpServer(cmd *cobra.Command, args []string) {
 	}
 	defer sqlDB.Close()
 
+	userRepo := repository.NewUserRepo(postgresDB)
+	userUsecase := usecase.NewUserUsecase(userRepo)
+
 	e := echo.New()
+
+	handlerHttp.NewUserHandler(e, userUsecase)
 
 	var wg sync.WaitGroup
 	errCh := make(chan error, 1)
