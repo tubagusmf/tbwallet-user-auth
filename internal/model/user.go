@@ -17,7 +17,7 @@ type User struct {
 	Email        string     `json:"email"`
 	PasswordHash string     `json:"password"`
 	Phone        string     `json:"phone"`
-	KycStatus    string     `json:"kyc_status"`
+	KycStatusID  *int64     `json:"kyc_status_id,omitempty"`
 	Role         string     `json:"role"`
 	CreatedAt    time.Time  `json:"created_at"`
 	UpdatedAt    time.Time  `json:"updated_at"`
@@ -25,11 +25,12 @@ type User struct {
 }
 
 type UserSession struct {
-	ID        int64     `json:"id"`
-	UserID    int64     `json:"user_id"`
-	Token     string    `json:"token"`
-	ExpiresAt time.Time `json:"expires_at"`
-	CreatedAt time.Time `json:"created_at"`
+	ID          int64     `json:"id"`
+	UserID      int64     `json:"user_id"`
+	Token       string    `json:"token"`
+	KycStatusID *int64    `json:"kyc_status_id"`
+	ExpiresAt   time.Time `json:"expires_at"`
+	CreatedAt   time.Time `json:"created_at"`
 }
 
 type LoginInput struct {
