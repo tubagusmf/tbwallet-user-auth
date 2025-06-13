@@ -2,68 +2,84 @@ package console
 
 import (
 	"log"
+	"net"
 	"net/http"
-	"sync"
 
 	"github.com/labstack/echo/v4"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+	"google.golang.org/grpc"
+
 	"github.com/tubagusmf/tbwallet-user-auth/database"
 	"github.com/tubagusmf/tbwallet-user-auth/internal/config"
+	grpcHandler "github.com/tubagusmf/tbwallet-user-auth/internal/delivery/grpc"
+	handlerHttp "github.com/tubagusmf/tbwallet-user-auth/internal/delivery/http"
 	"github.com/tubagusmf/tbwallet-user-auth/internal/repository"
 	"github.com/tubagusmf/tbwallet-user-auth/internal/usecase"
 
-	handlerHttp "github.com/tubagusmf/tbwallet-user-auth/internal/delivery/http"
+	kycPb "github.com/tubagusmf/tbwallet-user-auth/pb/kycdoc"
+	userPb "github.com/tubagusmf/tbwallet-user-auth/pb/user"
 )
 
-func init() {
-	rootCmd.AddCommand(serverCMD)
-}
-
-var serverCMD = &cobra.Command{
+var startServeCmd = &cobra.Command{
 	Use:   "httpsrv",
-	Short: "Start HTTP server",
-	Long:  "Start the HTTP server to handle incoming requests for the to-do list application.",
-	Run:   httpServer,
+	Short: "Start HTTP and gRPC servers",
+	Run: func(cmd *cobra.Command, args []string) {
+		config.LoadWithViper()
+
+		dbConn := database.NewPostgres()
+		sqlDB, err := dbConn.DB()
+		if err != nil {
+			log.Fatalf("Failed to get SQL DB from Gorm: %v", err)
+		}
+		defer sqlDB.Close()
+
+		userRepo := repository.NewUserRepo(dbConn)
+		kycRepo := repository.NewKycRepo(dbConn)
+
+		userUsecase := usecase.NewUserUsecase(userRepo, nil)
+		kycUsecase := usecase.NewKycUsecase(kycRepo, nil)
+
+		quitCh := make(chan bool, 1)
+
+		go func() {
+			e := echo.New()
+			e.GET("/ping", func(c echo.Context) error {
+				return c.String(http.StatusOK, "pong")
+			})
+
+			handlerHttp.NewUserHandler(e, userUsecase)
+			handlerHttp.NewKycHandler(e, kycUsecase)
+
+			log.Println("HTTP server running on :3000")
+			if err := e.Start(":3000"); err != nil && err != http.ErrServerClosed {
+				logrus.Fatalf("Failed to start HTTP server: %v", err)
+			}
+		}()
+
+		go func() {
+			grpcServer := grpc.NewServer()
+			userHandler := grpcHandler.NewUsergRPCHandler(userUsecase)
+			kycHandler := grpcHandler.NewKycdocGRPCHandler(kycUsecase)
+
+			userPb.RegisterUserServiceServer(grpcServer, userHandler)
+			kycPb.RegisterKycdocServiceServer(grpcServer, kycHandler)
+
+			lis, err := net.Listen("tcp", ":4001")
+			if err != nil {
+				log.Fatalf("Failed to listen on gRPC port: %v", err)
+			}
+
+			log.Println("gRPC server running on :4001")
+			if err := grpcServer.Serve(lis); err != nil {
+				log.Fatalf("Failed to serve gRPC: %v", err)
+			}
+		}()
+
+		<-quitCh
+	},
 }
 
-func httpServer(cmd *cobra.Command, args []string) {
-	config.LoadWithViper()
-
-	postgresDB := database.NewPostgres()
-	sqlDB, err := postgresDB.DB()
-	if err != nil {
-		log.Fatalf("Failed to get SQL DB from Gorm: %v", err)
-	}
-	defer sqlDB.Close()
-
-	userRepo := repository.NewUserRepo(postgresDB)
-	userUsecase := usecase.NewUserUsecase(userRepo)
-	kycRepo := repository.NewKycRepo(postgresDB)
-	kycUsecase := usecase.NewKycUsecase(kycRepo)
-
-	e := echo.New()
-
-	handlerHttp.NewUserHandler(e, userUsecase)
-	handlerHttp.NewKycHandler(e, kycUsecase)
-
-	var wg sync.WaitGroup
-	errCh := make(chan error, 1)
-
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		errCh <- e.Start(":3000")
-	}()
-
-	go func() {
-		wg.Wait()
-		close(errCh)
-	}()
-
-	if err := <-errCh; err != nil {
-		if err != http.ErrServerClosed {
-			logrus.Errorf("HTTP server error: %v", err)
-		}
-	}
+func init() {
+	rootCmd.AddCommand(startServeCmd)
 }

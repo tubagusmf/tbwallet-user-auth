@@ -28,6 +28,8 @@ func NewKycHandler(e *echo.Echo, kycUsecase model.IKycDocUsecase) {
 	routeKyc.GET("/user/:user_id", handlers.GetByUserID, AuthMiddleware)
 	routeKyc.POST("/create", handlers.Create, AuthMiddleware)
 	routeKyc.PUT("/update/:id", handlers.Update, AuthMiddleware)
+	routeKyc.PUT("/validate/:id", handlers.ValidateStatus)
+	routeKyc.GET("/status/:user_id", handlers.GetKycStatus)
 }
 
 func (h *KycHandler) GetByID(c echo.Context) error {
@@ -197,5 +199,51 @@ func (h *KycHandler) Update(c echo.Context) error {
 		Status:  http.StatusOK,
 		Message: "Update Document successfully",
 		Data:    kyc,
+	})
+}
+
+func (h *KycHandler) ValidateStatus(c echo.Context) error {
+	idParam := c.Param("id")
+	id, err := strconv.ParseInt(idParam, 10, 64)
+	if err != nil || id <= 0 {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid kyc ID format")
+	}
+
+	var input model.ValidateStatusInput
+	if err := c.Bind(&input); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid request body")
+	}
+
+	if input.Status != "approved" && input.Status != "rejected" {
+		return echo.NewHTTPError(http.StatusBadRequest, "Status must be either 'approved' or 'rejected'")
+	}
+
+	kyc, err := h.kycUsecase.ValidateStatus(c.Request().Context(), id, input)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "Failed to validate kyc")
+	}
+
+	return c.JSON(http.StatusOK, Response{
+		Status:  http.StatusOK,
+		Message: "Validate Document successfully",
+		Data:    kyc,
+	})
+}
+
+func (h *KycHandler) GetKycStatus(c echo.Context) error {
+	idParam := c.Param("user_id")
+	id, err := strconv.ParseInt(idParam, 10, 64)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "Invalid user ID format")
+	}
+
+	kyc, err := h.kycUsecase.GetKycStatus(c.Request().Context(), id)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusNotFound, "Kyc not found")
+	}
+
+	return c.JSON(http.StatusOK, Response{
+		Status: http.StatusOK,
+		Data:   kyc,
 	})
 }

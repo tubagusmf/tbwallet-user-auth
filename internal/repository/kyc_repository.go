@@ -65,3 +65,32 @@ func (k *KycRepo) Update(ctx context.Context, id int64, doc model.KycDocument) (
 
 	return &doc, nil
 }
+
+func (k *KycRepo) ValidateStatus(ctx context.Context, id int64, status string) (*model.KycDocument, error) {
+	var doc model.KycDocument
+	if err := k.db.WithContext(ctx).First(&doc, id).Error; err != nil {
+		return nil, err
+	}
+
+	if doc.Status == status {
+		return &doc, nil
+	}
+
+	doc.Status = status
+	doc.UpdatedAt = time.Now()
+
+	if err := k.db.WithContext(ctx).Save(&doc).Error; err != nil {
+		return nil, err
+	}
+
+	return &doc, nil
+}
+
+func (k *KycRepo) GetKycStatus(ctx context.Context, userID int64) (*model.KycDocument, error) {
+	var doc model.KycDocument
+	if err := k.db.WithContext(ctx).Where("user_id = ?", userID).First(&doc).Error; err != nil {
+		return nil, err
+	}
+
+	return &doc, nil
+}

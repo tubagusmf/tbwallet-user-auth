@@ -8,7 +8,7 @@ create table users (
     "email" varchar(150) not null unique,
     "password_hash" text not null,
     "phone" varchar(20) not null,
-    "kyc_status" varchar(50) default 'pending',
+    "kyc_status_id" int not null,
     "role" roles default 'user',
     "created_at" timestamp default current_timestamp,
     "updated_at" timestamp default current_timestamp,

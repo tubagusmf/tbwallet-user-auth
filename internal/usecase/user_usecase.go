@@ -8,15 +8,20 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/tubagusmf/tbwallet-user-auth/internal/helper"
 	"github.com/tubagusmf/tbwallet-user-auth/internal/model"
+	"github.com/tubagusmf/tbwallet-user-auth/pb/user"
 	"golang.org/x/crypto/bcrypt"
 )
 
 type UserUsecase struct {
-	userRepo model.IUserRepository
+	userRepo   model.IUserRepository
+	userClient user.UserServiceClient
 }
 
-func NewUserUsecase(userRepo model.IUserRepository) model.IUserUsecase {
-	return &UserUsecase{userRepo: userRepo}
+func NewUserUsecase(userRepo model.IUserRepository, userClient user.UserServiceClient) model.IUserUsecase {
+	return &UserUsecase{
+		userRepo:   userRepo,
+		userClient: userClient,
+	}
 }
 
 func (u *UserUsecase) GetAll(ctx context.Context, user model.User) ([]*model.User, error) {
@@ -68,7 +73,9 @@ func (u *UserUsecase) Create(ctx context.Context, input model.CreateUserInput) (
 		Name:         input.Name,
 		Email:        input.Email,
 		PasswordHash: passwordHashed,
+		Phone:        input.Phone,
 		Role:         input.Role,
+		KycStatusID:  nil,
 	})
 	if err != nil {
 		log.Error(err)
@@ -118,6 +125,7 @@ func (u *UserUsecase) Update(ctx context.Context, id int64, input model.UpdateUs
 		Name:         input.Name,
 		Email:        input.Email,
 		PasswordHash: string(hashedPassword),
+		Phone:        input.Phone,
 		Role:         input.Role,
 	})
 	if err != nil {
@@ -203,10 +211,11 @@ func (u *UserUsecase) Login(ctx context.Context, input model.LoginInput) (token 
 	}
 
 	session := model.UserSession{
-		UserID:    user.ID,
-		Token:     token,
-		ExpiresAt: time.Now().Add(24 * time.Hour),
-		CreatedAt: time.Now(),
+		UserID:      user.ID,
+		Token:       token,
+		KycStatusID: user.KycStatusID,
+		ExpiresAt:   time.Now().Add(24 * time.Hour),
+		CreatedAt:   time.Now(),
 	}
 	_, err = u.userRepo.CreateSession(ctx, session)
 	if err != nil {

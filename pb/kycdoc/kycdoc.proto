@@ -1,0 +1,33 @@
+syntax = "proto3";
+
+option go_package = "github.com/tubagusmf/tbwallet-user-auth/pb/kycdoc";
+
+package kycdoc;
+
+message Kycdoc {
+    int64 id = 1;
+    int64 user_id = 2;
+    string document_type = 3;
+    string document_url = 4;
+    string status = 5;
+}
+
+message GetKycdocByUserIDRequest {
+    int64 user_id = 1;
+}
+
+message GetKycdocByUserIDResponse {
+    repeated Kycdoc kycdocs = 1;
+}
+message GetKycStatusRequest {
+    int64 user_id = 1;
+}
+
+message GetKycStatusResponse {
+    string status = 1;
+}
+
+service KycdocService {
+    rpc GetKycdocByUserID(GetKycdocByUserIDRequest) returns (GetKycdocByUserIDResponse);
+    rpc GetKycStatus(GetKycStatusRequest) returns (GetKycStatusResponse);
+}
